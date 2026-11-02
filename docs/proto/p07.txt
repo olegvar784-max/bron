@@ -1,0 +1,20 @@
+# 20. Администратор отменяет чужую запись №9 без причины и с причиной
+$ curl -X POST http://localhost:8080/api/bookings/9/cancel -H "Authorization: Bearer $T_ADMIN" -H 'Content-Type: application/json' -d '{}'
+{"error": "validation", "message": "Укажите причину отмены (5–300 символов)", "traceId": "8d1146be-48a5-457a-803b-da1b28c60ce3", "fields": {"reason": "Причина обязательна"}}
+→ HTTP 400
+
+$ curl -X POST http://localhost:8080/api/bookings/9/cancel -H "Authorization: Bearer $T_ADMIN" -H 'Content-Type: application/json' -d '{"reason":"Аудитория нужна для экзамена"}'
+{"id": 9, "resourceId": 4, "resourceName": "Переговорная «Нева»", "location": "Корпус 2, этаж 1", "userId": 2, "userLogin": "petrova", "userName": "Петрова Анна", "startsAt": "2026-11-03T07:00:00.000Z", "endsAt": "2026-11-03T08:00:00.000Z", "purpose": "Собрание старост групп", "status": "cancelled", "createdAt": "2026-11-02T14:2 …
+→ HTTP 200
+
+# 21. Бронирование отключённого ресурса №6 (актовый зал)
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_IVANOV" -H 'Idempotency-Key: chk21-b9d1f3a5' -H 'Content-Type: application/json' -d '{"resourceId": 6, "startsAt": "2026-11-03T16:00:00+03:00", "endsAt": "2026-11-03T17:00:00+03:00", "purpose": "Репетиция выпускного вечера"}'
+{"error": "resource_disabled", "message": "Ресурс отключён для новых бронирований", "traceId": "97d946eb-e047-4628-ac4c-70944cb77c2e"}
+→ HTTP 409
+
+# 22. История отмены сохранена: запись №6
+$ psql -d bron -c "SELECT b.id, b.status, b.cancelled_at AT TIME ZONE 'Europe/Moscow' AS cancelled_msk, u.login AS cancelled_by FROM bookings b JOIN users u ON u.id = b.cancelled_by WHERE b.id = 6;"
+ id |  status   |       cancelled_msk        | cancelled_by 
+----+-----------+----------------------------+--------------
+  6 | cancelled | 2026-11-02 17:22:38.276028 | ivanov
+(1 row)

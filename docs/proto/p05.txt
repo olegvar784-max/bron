@@ -1,0 +1,28 @@
+# 14. Чужая запись: petrova читает и отменяет запись ivanov №6
+$ curl http://localhost:8080/api/bookings/6 -H "Authorization: Bearer $T_PETROVA"
+{"error": "not_found", "message": "Запись не найдена", "traceId": "f237936d-ee88-4e04-87b0-dad532defb45"}
+→ HTTP 404
+
+$ curl -X POST http://localhost:8080/api/bookings/6/cancel -H "Authorization: Bearer $T_PETROVA" -H 'Content-Type: application/json' -d '{}'
+{"error": "not_found", "message": "Запись не найдена", "traceId": "5dcb7b35-46d1-49cc-9230-99848d76aa46"}
+→ HTTP 404
+
+$ psql -d bron -c "SELECT id, user_id, status FROM bookings WHERE id = 6;"
+ id | user_id | status 
+----+---------+--------
+  6 |       1 | active
+(1 row)
+
+# 15. Административные функции обычным пользователем
+$ curl http://localhost:8080/api/admin/bookings -H "Authorization: Bearer $T_IVANOV"
+{"error": "forbidden", "message": "Действие доступно только администратору", "traceId": "e99a9c84-c127-47b4-bec8-ad6f002024bf"}
+→ HTTP 403
+
+$ curl -X PATCH http://localhost:8080/api/admin/resources/1 -H "Authorization: Bearer $T_IVANOV" -H 'Content-Type: application/json' -d '{"isActive":false}'
+{"error": "forbidden", "message": "Действие доступно только администратору", "traceId": "689b4efe-a187-4f1c-9f05-b85a4a9808ef"}
+→ HTTP 403
+
+# 16. Запрос без JWT
+$ curl http://localhost:8080/api/bookings/my
+{"error": "unauthorized", "message": "Требуется вход в систему", "traceId": "c4f78877-113c-471d-8e78-8f20f2abc7d1"}
+→ HTTP 401

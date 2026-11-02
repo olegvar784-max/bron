@@ -1,0 +1,17 @@
+# 25. Ответ проверки 9 содержит traceId 84c91f43-1996-4fc4-9c68-a0be5817fb0d — поиск в техническом журнале
+$ grep 84c91f43-1996-4fc4-9c68-a0be5817fb0d logs/app.log
+{"time":"2026-11-02T14:22:37.958Z","level":"warn","event":"api_error","traceId":"84c91f43-1996-4fc4-9c68-a0be5817fb0d","status":409,"code":"overlap","message":"Ресурс уже занят в выбранное время"}
+{"time":"2026-11-02T14:22:37.958Z","level":"info","event":"http","traceId":"84c91f43-1996-4fc4-9c68-a0be5817fb0d","method":"POST","path":"/api/bookings","status":409,"userId":2,"ms":5}
+
+$ curl -s http://localhost:8080/health/live
+{"status":"ok"}
+$ curl -s http://localhost:8080/health/ready
+{"status":"ready"}
+
+# Экземпляр с недоступной БД (DB_PORT=5999, порт 8083)
+$ curl -s -w "\n  → HTTP %{http_code}\n" http://localhost:8083/health/live
+{"status":"ok"}
+  → HTTP 200
+$ curl -s -w "\n  → HTTP %{http_code}\n" http://localhost:8083/health/ready
+{"status":"not_ready","message":"База данных недоступна","traceId":"216c1a5c-162b-4fd8-98da-8ae1b6017d8e"}
+  → HTTP 503

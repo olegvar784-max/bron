@@ -1,0 +1,29 @@
+# 17. Отмена своей будущей записи №6 (ivanov), затем бронь того же времени (petrova)
+$ curl -X POST http://localhost:8080/api/bookings/6/cancel -H "Authorization: Bearer $T_IVANOV" -H 'Content-Type: application/json' -d '{}'
+{"id": 6, "resourceId": 3, "resourceName": "Ауд. 305", "location": "Корпус 1, этаж 3", "userId": 1, "userLogin": "ivanov", "userName": "Иванов Сергей", "startsAt": "2026-11-03T07:00:00.000Z", "endsAt": "2026-11-03T08:00:00.000Z", "purpose": "Консультация по курсовому проекту", "status": "cancelled", "createdAt": "2026-11-02T14:2 …
+→ HTTP 200
+
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_PETROVA" -H 'Idempotency-Key: chk17-a8c0e2f4' -H 'Content-Type: application/json' -d '{"resourceId": 3, "startsAt": "2026-11-03T10:00:00+03:00", "endsAt": "2026-11-03T11:00:00+03:00", "purpose": "Занятие кружка робототехники"}'
+{"id": 11, "resourceId": 3, "resourceName": "Ауд. 305", "location": "Корпус 1, этаж 3", "userId": 2, "userLogin": "petrova", "userName": "Петрова Анна", "startsAt": "2026-11-03T07:00:00.000Z", "endsAt": "2026-11-03T08:00:00.000Z", "purpose": "Занятие кружка робототехники", "status": "active", "createdAt": "2026-11-02T14:22:38.29 …
+→ HTTP 201
+
+# 18. Повторная отмена той же записи
+$ curl -X POST http://localhost:8080/api/bookings/6/cancel -H "Authorization: Bearer $T_IVANOV" -H 'Content-Type: application/json' -d '{}'
+{"error": "already_cancelled", "message": "Запись уже отменена, состояние не изменено", "traceId": "366c841b-f6ee-47bf-a86e-27a24865c103"}
+→ HTTP 409
+
+# 19. Отмена начавшейся записи №5 (идёт сейчас) и завершённой записи №1
+$ curl -X POST http://localhost:8080/api/bookings/5/cancel -H "Authorization: Bearer $T_IVANOV" -H 'Content-Type: application/json' -d '{}'
+{"error": "already_started", "message": "Начавшуюся или завершённую запись отменить нельзя", "traceId": "8ca30120-9263-4341-801a-a52e649fc6cd"}
+→ HTTP 409
+
+$ curl -X POST http://localhost:8080/api/bookings/1/cancel -H "Authorization: Bearer $T_IVANOV" -H 'Content-Type: application/json' -d '{}'
+{"error": "already_started", "message": "Начавшуюся или завершённую запись отменить нельзя", "traceId": "435ed086-80b6-4909-86a3-75830f373ec5"}
+→ HTTP 409
+
+$ psql -d bron -c "SELECT id, status, cancelled_at IS NOT NULL AS cancelled FROM bookings WHERE id IN (1, 5) ORDER BY id;"
+ id | status | cancelled 
+----+--------+-----------
+  1 | active | f
+  5 | active | f
+(2 rows)

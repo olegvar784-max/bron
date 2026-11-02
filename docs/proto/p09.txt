@@ -1,0 +1,20 @@
+# 24. Два пользователя одновременно бронируют один и тот же интервал (3 попытки)
+$ node scripts/race-test.js 1
+Попытка 1: ресурс 3, 2026-11-07 09:00–09:30 МСК
+  ivanov   → 201 создана запись №12
+  petrova  → 409 Ресурс уже занят в выбранное время
+$ node scripts/race-test.js 2
+Попытка 2: ресурс 3, 2026-11-07 10:00–10:30 МСК
+  ivanov   → 201 создана запись №14
+  petrova  → 409 Ресурс уже занят в выбранное время
+$ node scripts/race-test.js 3
+Попытка 3: ресурс 3, 2026-11-07 11:00–11:30 МСК
+  ivanov   → 201 создана запись №16
+  petrova  → 409 Ресурс уже занят в выбранное время
+$ psql -d bron -c "SELECT id, user_id, starts_at AT TIME ZONE 'Europe/Moscow' AS start_msk, status FROM bookings WHERE purpose LIKE 'Проверка гонки%' ORDER BY starts_at;"
+ id | user_id |      start_msk      | status 
+----+---------+---------------------+--------
+ 12 |       1 | 2026-11-07 09:00:00 | active
+ 14 |       1 | 2026-11-07 10:00:00 | active
+ 16 |       1 | 2026-11-07 11:00:00 | active
+(3 rows)

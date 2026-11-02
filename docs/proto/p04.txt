@@ -1,0 +1,19 @@
+# 12. Повтор того же запроса с тем же ключом (ответ на первый «потерян»)
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_IVANOV" -H 'Idempotency-Key: chk12-f7b9d1e3' -H 'Content-Type: application/json' -d '{"resourceId": 2, "startsAt": "2026-11-03T12:00:00+03:00", "endsAt": "2026-11-03T13:00:00+03:00", "purpose": "Встреча проектной группы"}'
+{"id": 10, "resourceId": 2, "resourceName": "Ауд. 204", "location": "Корпус 1, этаж 2", "userId": 1, "userLogin": "ivanov", "userName": "Иванов Сергей", "startsAt": "2026-11-03T09:00:00.000Z", "endsAt": "2026-11-03T10:00:00.000Z", "purpose": "Встреча проектной группы", "status": "active", "createdAt": "2026-11-02T14:22:38.065Z", …
+→ HTTP 201
+
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_IVANOV" -H 'Idempotency-Key: chk12-f7b9d1e3' -H 'Content-Type: application/json' -d '{"resourceId": 2, "startsAt": "2026-11-03T12:00:00+03:00", "endsAt": "2026-11-03T13:00:00+03:00", "purpose": "Встреча проектной группы"}'
+{"id": 10, "resourceId": 2, "resourceName": "Ауд. 204", "location": "Корпус 1, этаж 2", "userId": 1, "userLogin": "ivanov", "userName": "Иванов Сергей", "startsAt": "2026-11-03T09:00:00.000Z", "endsAt": "2026-11-03T10:00:00.000Z", "purpose": "Встреча проектной группы", "status": "active", "createdAt": "2026-11-02T14:22:38.065Z", …
+→ HTTP 200
+
+# 13. Прежний ключ, другие данные (время 14:00–15:00)
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_IVANOV" -H 'Idempotency-Key: chk12-f7b9d1e3' -H 'Content-Type: application/json' -d '{"resourceId": 2, "startsAt": "2026-11-03T14:00:00+03:00", "endsAt": "2026-11-03T15:00:00+03:00", "purpose": "Встреча проектной группы"}'
+{"error": "idempotency_conflict", "message": "Ключ Idempotency-Key уже использован с другими данными", "traceId": "873c3dcd-b6eb-4c77-8823-3923659b7c52"}
+→ HTTP 409
+
+$ psql -d bron -c "SELECT count(*) AS records_with_key FROM bookings b JOIN idempotency_keys k ON k.booking_id = b.id WHERE k.key = 'chk12-f7b9d1e3';"
+ records_with_key 
+------------------
+                1
+(1 row)

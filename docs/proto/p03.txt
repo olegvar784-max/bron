@@ -1,0 +1,21 @@
+# 9. Пересечение: petrova, ресурс 3, 10:30–11:30
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_PETROVA" -H 'Idempotency-Key: chk9-c4e6a8b0' -H 'Content-Type: application/json' -d '{"resourceId": 3, "startsAt": "2026-11-03T10:30:00+03:00", "endsAt": "2026-11-03T11:30:00+03:00", "purpose": "Занятие кружка робототехники"}'
+{"error": "overlap", "message": "Ресурс уже занят в выбранное время", "traceId": "84c91f43-1996-4fc4-9c68-a0be5817fb0d"}
+→ HTTP 409
+
+# 10. Соседний интервал: petrova, ресурс 3, 11:00–12:00
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_PETROVA" -H 'Idempotency-Key: chk10-d5f7b9c1' -H 'Content-Type: application/json' -d '{"resourceId": 3, "startsAt": "2026-11-03T11:00:00+03:00", "endsAt": "2026-11-03T12:00:00+03:00", "purpose": "Занятие кружка робототехники"}'
+{"id": 8, "resourceId": 3, "resourceName": "Ауд. 305", "location": "Корпус 1, этаж 3", "userId": 2, "userLogin": "petrova", "userName": "Петрова Анна", "startsAt": "2026-11-03T08:00:00.000Z", "endsAt": "2026-11-03T09:00:00.000Z", "purpose": "Занятие кружка робототехники", "status": "active", "createdAt": "2026-11-02T14:22:37.972 …
+→ HTTP 201
+
+# 11. Другой ресурс в то же время: petrova, ресурс 4, 10:00–11:00
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_PETROVA" -H 'Idempotency-Key: chk11-e6a8c0d2' -H 'Content-Type: application/json' -d '{"resourceId": 4, "startsAt": "2026-11-03T10:00:00+03:00", "endsAt": "2026-11-03T11:00:00+03:00", "purpose": "Собрание старост групп"}'
+{"id": 9, "resourceId": 4, "resourceName": "Переговорная «Нева»", "location": "Корпус 2, этаж 1", "userId": 2, "userLogin": "petrova", "userName": "Петрова Анна", "startsAt": "2026-11-03T07:00:00.000Z", "endsAt": "2026-11-03T08:00:00.000Z", "purpose": "Собрание старост групп", "status": "active", "createdAt": "2026-11-02T14:22:3 …
+→ HTTP 201
+
+$ psql -d bron -c "SELECT id, resource_id, user_id, starts_at AT TIME ZONE 'Europe/Moscow' AS start_msk, ends_at AT TIME ZONE 'Europe/Moscow' AS end_msk, status FROM bookings WHERE resource_id = 3 AND starts_at::date = '2026-11-03' ORDER BY starts_at;"
+ id | resource_id | user_id |      start_msk      |       end_msk       | status 
+----+-------------+---------+---------------------+---------------------+--------
+  6 |           3 |       1 | 2026-11-03 10:00:00 | 2026-11-03 11:00:00 | active
+  8 |           3 |       2 | 2026-11-03 11:00:00 | 2026-11-03 12:00:00 | active
+(2 rows)

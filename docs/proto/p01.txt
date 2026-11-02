@@ -1,0 +1,4 @@
+# 1. Корректное бронирование: ivanov, ресурс 3, 10:00–11:00 (МСК)
+$ curl -X POST http://localhost:8080/api/bookings -H "Authorization: Bearer $T_IVANOV" -H 'Idempotency-Key: chk1-a7f3e2c1' -H 'Content-Type: application/json' -d '{"resourceId": 3, "startsAt": "2026-11-03T10:00:00+03:00", "endsAt": "2026-11-03T11:00:00+03:00", "purpose": "Консультация по курсовому проекту"}'
+{"id": 6, "resourceId": 3, "resourceName": "Ауд. 305", "location": "Корпус 1, этаж 3", "userId": 1, "userLogin": "ivanov", "userName": "Иванов Сергей", "startsAt": "2026-11-03T07:00:00.000Z", "endsAt": "2026-11-03T08:00:00.000Z", "purpose": "Консультация по курсовому проекту", "status": "active", "createdAt": "2026-11-02T14:22:3 …
+→ HTTP 201

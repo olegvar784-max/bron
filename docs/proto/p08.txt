@@ -1,0 +1,8 @@
+# 23. Истёкший JWT: экземпляр с JWT_TTL=5s (порт 8082), вход и запрос через 6 секунд
+$ TOKEN=$(curl -s -X POST http://localhost:8082/api/auth/login -H 'Content-Type: application/json' -d '{"login":"ivanov","password":"…"}' | jq -r .token)
+$ curl -s http://localhost:8082/api/bookings/my -H "Authorization: Bearer $TOKEN" | jq length
+5
+$ sleep 6
+$ curl -s -w "\n  → HTTP %{http_code}\n" http://localhost:8082/api/bookings/my -H "Authorization: Bearer $TOKEN"
+{"error":"unauthorized","message":"Срок действия входа истёк, войдите снова","traceId":"5a932512-db8a-4cdf-bb60-74c5a90815b5"}
+  → HTTP 401

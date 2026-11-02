@@ -1,0 +1,44 @@
+# 26. Контрольная запись до резервного копирования
+$ psql -d bron -c "SELECT b.id, r.name, u.login, b.starts_at AT TIME ZONE 'Europe/Moscow' AS start_msk, b.ends_at AT TIME ZONE 'Europe/Moscow' AS end_msk, b.status FROM bookings b JOIN resources r ON r.id=b.resource_id JOIN users u ON u.id=b.user_id WHERE b.id = 20;"
+ id |   name   | login  |      start_msk      |       end_msk       | status 
+----+----------+--------+---------------------+---------------------+--------
+ 20 | Ауд. 204 | ivanov | 2026-11-03 16:00:00 | 2026-11-03 17:00:00 | active
+(1 row)
+$ psql -d bron -tAc "SELECT count(*) FROM bookings"
+16
+
+# 27. Резервная копия (формат custom)
+$ pg_dump -U postgres -h localhost -Fc -d bron -f backup/bron_20261102_1723.dump  &&  ls -lh backup/bron_20261102_1723.dump
+21K backup/bron_20261102_1723.dump
+
+# 28. Восстановление в отдельную базу bron_restore
+$ createdb -U postgres -h localhost bron_restore
+$ pg_restore -U postgres -h localhost -d bron_restore --no-owner backup/bron_20261102_1723.dump
+pg_restore: завершено без ошибок
+$ psql -d bron_restore -tAc "SELECT count(*) FROM bookings"
+16
+
+# 29. Запуск сервиса на восстановленной базе (DB_NAME=bron_restore, порт 8081) и проверка
+$ DB_NAME=bron_restore PORT=8081 npm start   # в отдельном терминале
+$ curl -s http://localhost:8081/health/ready
+{"status":"ready"}
+$ TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login -H 'Content-Type: application/json' -d '{"login":"ivanov","password":"…"}' | jq -r .token)
+# вход выполнен, токен получен
+$ curl -s http://localhost:8081/api/resources -H "Authorization: Bearer $TOKEN" | jq -c '.[] | [.id, .name]'
+[1,"Ауд. 101"]
+[7,"Ауд. 112"]
+[2,"Ауд. 204"]
+[3,"Ауд. 305"]
+[5,"Лаборатория сетей"]
+[4,"Переговорная «Нева»"]
+$ curl -s http://localhost:8081/api/bookings/20 -H "Authorization: Bearer $TOKEN" | jq -c "{id, resourceName, startsAt, endsAt, status}"
+{"id":20,"resourceName":"Ауд. 204","startsAt":"2026-11-03T13:00:00.000Z","endsAt":"2026-11-03T14:00:00.000Z","status":"active"}
+# защита от пересечений в восстановленной базе: то же время на том же ресурсе
+$ curl -X POST http://localhost:8081/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Idempotency-Key: restore-chk-01' -H 'Content-Type: application/json' -d '{"resourceId": 2, "startsAt": "2026-11-03T16:30:00+03:00", "endsAt": "2026-11-03T17:30:00+03:00", "purpose": "Проверка после восстановления"}'
+{"error":"overlap","message":"Ресурс уже занят в выбранное время","traceId":"b65b7ecd-6562-4253-9718-05e09e2cd21e"}
+  → HTTP 409
+$ psql -d bron_restore -c "SELECT conname, contype FROM pg_constraint WHERE conrelid = 'bookings'::regclass AND contype = 'x';"
+       conname       | contype 
+---------------------+---------
+ bookings_no_overlap | x
+(1 row)

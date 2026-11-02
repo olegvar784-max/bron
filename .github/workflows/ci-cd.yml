@@ -1,0 +1,116 @@
+# Конвейер «Бронь без конфликтов»: проверка → сборка → артефакт → публикация на стенд → проверка готовности.
+# Автотесты API в конвейер не входят (по заданию функциональность проверяется вручную).
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# одновременно выполняется только одна публикация: две миграции не запустятся параллельно
+concurrency:
+  group: bron-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Проверка и сборка
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получение кода
+        uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Проверка кода (ESLint)
+        run: npm run lint
+
+      - name: Сборка клиента и сервера
+        run: npm run build
+
+      - name: Формирование артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: bron-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
+  deploy:
+    name: Публикация на стенд
+    needs: build                       # при ошибке сборки публикация пропускается
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: staging               # секреты берутся из настроек среды staging
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bron
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: bron
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bron"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: production
+      PORT: 8080
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: bron
+      DB_USER: bron
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+    steps:
+      - name: Получение артефакта
+        uses: actions/download-artifact@v4
+        with:
+          name: bron-${{ github.sha }}
+          path: release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Установка зависимостей выпуска
+        working-directory: release
+        run: npm ci --omit=dev
+
+      - name: Миграции БД (одним процессом, с блокировкой)
+        working-directory: release
+        run: npm run migrate
+
+      - name: Начальное заполнение учебными данными
+        working-directory: release
+        run: npm run seed
+
+      - name: Запуск сервиса
+        working-directory: release
+        run: |
+          nohup node src/server.js > service.out 2>&1 &
+          echo $! > service.pid
+
+      - name: Проверка готовности
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health/ready || true)
+            if [ "$code" = "200" ]; then echo "Сервис готов (попытка $i)"; break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/health/live
+          curl -sf http://localhost:8080/health/ready
+          echo "Версия: $(cat release/BUILD_INFO.txt)"
+
+      - name: Журнал запуска при ошибке
+        if: failure()
+        run: tail -n 50 release/service.out || true
