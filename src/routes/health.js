@@ -4,7 +4,7 @@ const { pool } = require('../db');
 const router = express.Router();
 
 // процесс жив
-router.get('/live', (req, res) => res.json({ status: 'ok' }));
+router.get('/live', (req, res) => res.json({ status: 'ok' });
 
 // готовность обслуживать запросы: проверка БД; при недоступности — 503 без внутренних деталей
 router.get('/ready', async (req, res) => {
